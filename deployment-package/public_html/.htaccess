@@ -1,0 +1,13 @@
+Options -MultiViews
+RewriteEngine On
+
+# Keep PHP REST API routes inside /api.
+RewriteRule ^api(?:/|$) - [L]
+
+# Serve real frontend files and assets normally.
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# React single-page fallback.
+RewriteRule ^ index.html [L]
