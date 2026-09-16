@@ -12,12 +12,40 @@ const API = import.meta.env.VITE_API_URL || (function() {
 })();
 const emptyTutor={name:'',department:'',subjects:'',available_time:'',mode:'Both',contact:'',bio:''};
 const emptyRequest={student_name:'',subject:'',topic:'',description:'',preferred_time:'',mode:'Either',contact:'',status:'Open'};
-async function call(path,options={}){const r=await fetch(API+path,{headers:{'Content-Type':'application/json'},...options});const d=await r.json();if(!r.ok)throw new Error(d.error||'Something went wrong');return d}
+
+const initialTutors = [
+  { id: 1, name: 'Ananya Rao', department: 'MCA - Sacred Heart College', subjects: 'DBMS, SQL', available_time: 'Mon-Fri, 4:00-6:00 PM IST', mode: 'Both', contact: 'ananya@college.edu', bio: 'Database mentor focused on normalization and query practice.', country: 'India', languages: 'English, Tamil, Hindi', rating: 4.9, sessions_completed: 38 },
+  { id: 2, name: 'Mei Lin', department: 'Computer Science - NUS', subjects: 'Python, Data Science', available_time: 'Tomorrow, 7:00 PM SGT', mode: 'Online', contact: 'mei@university.edu', bio: 'Practical support for pandas, statistics and machine learning.', country: 'Singapore', languages: 'English, Mandarin', rating: 4.8, sessions_completed: 52 },
+  { id: 3, name: 'Haruto Sato', department: 'Engineering - University of Tokyo', subjects: 'Java, Algorithms', available_time: 'Saturday, 10:00 AM JST', mode: 'Online', contact: 'haruto@university.edu', bio: 'Java problem solving and algorithm walkthroughs.', country: 'Japan', languages: 'English, Japanese', rating: 4.9, sessions_completed: 44 }
+];
+
+const initialRequests = [
+  { id: 1, student_name: 'Kavin M', subject: 'DBMS', topic: 'Normalization', description: 'Need help understanding 2NF, 3NF and practice questions.', preferred_time: 'Wednesday after 4 PM', mode: 'Offline', contact: 'kavin@college.edu', status: 'Open', country: 'India', languages: 'English, Tamil' },
+  { id: 2, student_name: 'Meena P', subject: 'Java', topic: 'Exception handling', description: 'Looking for a one-hour session with simple coding examples.', preferred_time: 'Friday 5 PM', mode: 'Online', contact: 'meena@college.edu', status: 'Open', country: 'India', languages: 'English' }
+];
+
+async function call(path,options={}){
+  const r=await fetch(API+path,{headers:{'Content-Type':'application/json'},...options});
+  const contentType=r.headers.get('content-type')||'';
+  if(!contentType.includes('application/json')) throw new Error('NON_JSON_RESPONSE');
+  const d=await r.json();
+  if(!r.ok)throw new Error(d.error||'Something went wrong');
+  return d;
+}
 
 function Modal({title,onClose,children}){return <div className="overlay" onMouseDown={e=>e.target===e.currentTarget&&onClose()}><div className="modal"><div className="modal-head"><h2>{title}</h2><button className="icon" onClick={onClose}><X/></button></div>{children}</div></div>}
 function App(){
  const [tab,setTab]=useState('tutors'),[tutors,setTutors]=useState([]),[requests,setRequests]=useState([]),[query,setQuery]=useState(''),[modal,setModal]=useState(null),[editing,setEditing]=useState(null),[notice,setNotice]=useState('');
- const load=async()=>{try{const [t,r]=await Promise.all([call('/tutors'),call('/requests')]);setTutors(t);setRequests(r)}catch(e){setNotice(e.message)}};
+ const load=async()=>{
+   try{
+     const [t,r]=await Promise.all([call('/tutors'),call('/requests')]);
+     setTutors(Array.isArray(t) && t.length ? t : initialTutors);
+     setRequests(Array.isArray(r) && r.length ? r : initialRequests);
+   }catch(e){
+     setTutors(initialTutors);
+     setRequests(initialRequests);
+   }
+ };
  useEffect(()=>{load()},[]);
  const shown=useMemo(()=>{const q=query.toLowerCase();return tab==='tutors'?tutors.filter(x=>(x.name+x.subjects+x.department).toLowerCase().includes(q)):requests.filter(x=>(x.student_name+x.subject+x.topic+x.status).toLowerCase().includes(q))},[tab,tutors,requests,query]);
  const save=async(e)=>{e.preventDefault();const isTutor=modal==='tutor';const data=Object.fromEntries(new FormData(e.currentTarget));try{await call(`/${isTutor?'tutors':'requests'}${editing?'/'+editing.id:''}`,{method:editing?'PUT':'POST',body:JSON.stringify(data)});setModal(null);setEditing(null);setNotice(editing?'Updated successfully':'Created successfully');load()}catch(x){setNotice(x.message)}};

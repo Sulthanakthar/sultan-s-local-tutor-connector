@@ -2,3 +2,5 @@ react-frontend/node_modules/
 backend/config/database.local.php
 .env
 *.log
+
+.vercel
