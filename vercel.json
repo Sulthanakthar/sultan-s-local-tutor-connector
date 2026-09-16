@@ -1,6 +1,5 @@
 {
   "version": 2,
-  "name": "peerbridge-local-tutor-connector",
   "builds": [
     {
       "src": "react-frontend/package.json",
