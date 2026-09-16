@@ -37,20 +37,95 @@ function Modal({title,onClose,children}){return <div className="overlay" onMouse
 function App(){
  const [tab,setTab]=useState('tutors'),[tutors,setTutors]=useState([]),[requests,setRequests]=useState([]),[query,setQuery]=useState(''),[modal,setModal]=useState(null),[editing,setEditing]=useState(null),[notice,setNotice]=useState('');
  const load=async()=>{
+   const localT = localStorage.getItem('peerbridge_tutors');
+   const localR = localStorage.getItem('peerbridge_requests');
+   const defaultT = localT ? JSON.parse(localT) : initialTutors;
+   const defaultR = localR ? JSON.parse(localR) : initialRequests;
    try{
      const [t,r]=await Promise.all([call('/tutors'),call('/requests')]);
-     setTutors(Array.isArray(t) && t.length ? t : initialTutors);
-     setRequests(Array.isArray(r) && r.length ? r : initialRequests);
+     setTutors(Array.isArray(t) && t.length ? t : defaultT);
+     setRequests(Array.isArray(r) && r.length ? r : defaultR);
    }catch(e){
-     setTutors(initialTutors);
-     setRequests(initialRequests);
+     setTutors(defaultT);
+     setRequests(defaultR);
    }
  };
+
  useEffect(()=>{load()},[]);
- const shown=useMemo(()=>{const q=query.toLowerCase();return tab==='tutors'?tutors.filter(x=>(x.name+x.subjects+x.department).toLowerCase().includes(q)):requests.filter(x=>(x.student_name+x.subject+x.topic+x.status).toLowerCase().includes(q))},[tab,tutors,requests,query]);
- const save=async(e)=>{e.preventDefault();const isTutor=modal==='tutor';const data=Object.fromEntries(new FormData(e.currentTarget));try{await call(`/${isTutor?'tutors':'requests'}${editing?'/'+editing.id:''}`,{method:editing?'PUT':'POST',body:JSON.stringify(data)});setModal(null);setEditing(null);setNotice(editing?'Updated successfully':'Created successfully');load()}catch(x){setNotice(x.message)}};
- const remove=async(type,id)=>{if(!confirm('Delete this item permanently?'))return;try{await call(`/${type}/${id}`,{method:'DELETE'});setNotice('Deleted successfully');load()}catch(e){setNotice(e.message)}};
- const closeRequest=async(r)=>{await call('/requests/'+r.id,{method:'PUT',body:JSON.stringify({...r,status:r.status==='Open'?'Closed':'Open'})});load()};
+
+ const shown=useMemo(()=>{
+   const q=query.toLowerCase();
+   return tab==='tutors'?tutors.filter(x=>(x.name+x.subjects+x.department).toLowerCase().includes(q)):requests.filter(x=>(x.student_name+x.subject+x.topic+x.status).toLowerCase().includes(q));
+ },[tab,tutors,requests,query]);
+
+ const save=async(e)=>{
+   e.preventDefault();
+   const isTutor=modal==='tutor';
+   const data=Object.fromEntries(new FormData(e.currentTarget));
+   try{
+     await call(`/${isTutor?'tutors':'requests'}${editing?'/'+editing.id:''}`,{method:editing?'PUT':'POST',body:JSON.stringify(data)});
+     setModal(null);
+     setEditing(null);
+     setNotice(editing?'Updated successfully':'Created successfully');
+     load();
+   }catch(x){
+     if (isTutor) {
+       let updated;
+       if (editing) {
+         updated = tutors.map(t => t.id === editing.id ? { ...t, ...data } : t);
+       } else {
+         const newTutor = { id: Date.now(), rating: 5.0, sessions_completed: 0, country: 'India', languages: 'English', bio: data.bio || 'Available to help fellow students.', ...data };
+         updated = [newTutor, ...tutors];
+       }
+       setTutors(updated);
+       localStorage.setItem('peerbridge_tutors', JSON.stringify(updated));
+     } else {
+       let updated;
+       if (editing) {
+         updated = requests.map(r => r.id === editing.id ? { ...r, ...data } : r);
+       } else {
+         const newReq = { id: Date.now(), status: 'Open', country: 'India', languages: 'English', ...data };
+         updated = [newReq, ...requests];
+       }
+       setRequests(updated);
+       localStorage.setItem('peerbridge_requests', JSON.stringify(updated));
+     }
+     setModal(null);
+     setEditing(null);
+     setNotice(editing ? 'Updated successfully' : 'Created successfully');
+   }
+ };
+
+ const remove=async(type,id)=>{
+   if(!confirm('Delete this item permanently?'))return;
+   try{
+     await call(`/${type}/${id}`,{method:'DELETE'});
+     setNotice('Deleted successfully');
+     load();
+   }catch(e){
+     if (type === 'tutors') {
+       const updated = tutors.filter(t => t.id !== id);
+       setTutors(updated);
+       localStorage.setItem('peerbridge_tutors', JSON.stringify(updated));
+     } else {
+       const updated = requests.filter(r => r.id !== id);
+       setRequests(updated);
+       localStorage.setItem('peerbridge_requests', JSON.stringify(updated));
+     }
+     setNotice('Deleted successfully');
+   }
+ };
+
+ const closeRequest=async(r)=>{
+   try{
+     await call('/requests/'+r.id,{method:'PUT',body:JSON.stringify({...r,status:r.status==='Open'?'Closed':'Open'})});
+     load();
+   }catch(e){
+     const updated = requests.map(item => item.id === r.id ? { ...item, status: item.status === 'Open' ? 'Closed' : 'Open' } : item);
+     setRequests(updated);
+     localStorage.setItem('peerbridge_requests', JSON.stringify(updated));
+   }
+ };
  const open=(type,item=null)=>{setEditing(item);setModal(type)};
  return <><header><a className="brand"><span><BookOpen/></span><div>PeerBridge<small>Campus learning network</small></div></a><nav><button className={tab==='tutors'?'active':''} onClick={()=>setTab('tutors')}>Find tutors</button><button className={tab==='requests'?'active':''} onClick={()=>setTab('requests')}>Help requests</button></nav><button className="primary" onClick={()=>open(tab==='tutors'?'tutor':'request')}><Plus/> {tab==='tutors'?'Become a tutor':'Ask for help'}</button></header>
  <main><section className="intro"><div><p className="eyebrow">STUDENTS HELPING STUDENTS</p><h1>{tab==='tutors'?'Find the right peer tutor.':'See who needs your knowledge.'}</h1><p>{tab==='tutors'?'Search by subject and connect with someone from your campus.':'Browse open learning requests and offer timely peer support.'}</p></div><div className="stats"><div><b>{tutors.length}</b><span>Active tutors</span></div><div><b>{requests.filter(r=>r.status==='Open').length}</b><span>Open requests</span></div><div><b>{new Set(tutors.flatMap(t=>t.subjects.split(',').map(s=>s.trim()))).size}</b><span>Subjects</span></div></div></section>
